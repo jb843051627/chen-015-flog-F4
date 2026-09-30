@@ -42,6 +42,11 @@ public class TFlogYieldRule implements Serializable {
     @ApiModelProperty(value = "线名")
     private String ruleName;
 
+    /** 管哪一类林地 1商品林 2公益林-抚育性质 3公益林-更新性质 4公益林-低质低效林改造性质 */
+    @TableField("scope_kind")
+    @ApiModelProperty(value = "管哪一类林地 1商品林 2公益林抚育 3公益林更新 4公益林低改")
+    private Integer scopeKind;
+
     /** 轻度线上限(立方米/公顷) */
     @TableField("th1_max")
     @ApiModelProperty(value = "轻度线上限(立方米/公顷)")
@@ -133,6 +138,14 @@ public class TFlogYieldRule implements Serializable {
 
     public void setRuleName(String ruleName) {
         this.ruleName = ruleName;
+    }
+
+    public Integer getScopeKind() {
+        return scopeKind;
+    }
+
+    public void setScopeKind(Integer scopeKind) {
+        this.scopeKind = scopeKind;
     }
 
     public BigDecimal getTh1Max() {

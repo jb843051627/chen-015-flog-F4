@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('材积表档录入')"/>
+</head>
+<body>
+<form class="layui-form">
+    <div class="mainBox"><div class="main-container">
+        <div class="layui-form-item">
+            <label class="layui-form-label">表代号</label>
+            <div class="layui-input-inline">
+                <input type="text" name="tableCode" autocomplete="off" placeholder="如 VT-ZJ" class="layui-input">
+            </div>
+            <label class="layui-form-label">版本号</label>
+            <div class="layui-input-inline">
+                <input type="text" name="tableVer" autocomplete="off" placeholder="如 2026" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">胸径档起</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.01" name="dbhMin" placeholder="厘米，含" class="layui-input">
+            </div>
+            <label class="layui-form-label">胸径档止</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.01" name="dbhMax" placeholder="厘米，不含" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">树高档起</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.01" name="heightMin" placeholder="米，含" class="layui-input">
+            </div>
+            <label class="layui-form-label">树高档止</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.01" name="heightMax" placeholder="米，不含" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">单株材积</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.000001" name="treeVolume" placeholder="立方米，正数" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-block layui-word-aux">
+                一档管一株：胸径落 [档起, 档止)、树高落 [档起, 档止) 折本档材积；同版档子不许重叠，
+                重叠了一株折出两个材积，三级链便对不上。设计单钉哪一版，蓄积与定档就得同用那一版。
+            </div>
+        </div>
+    </div></div>
+    <div class="bottom"><div class="button-container">
+        <button type="submit" class="layui-btn layui-btn-normal layui-btn-sm" lay-submit lay-filter="vt-save">
+            <i class="layui-icon layui-icon-ok"></i> 录这一档
+        </button>
+        <button type="reset" class="layui-btn layui-btn-primary layui-btn-sm">清空</button>
+    </div></div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery', 'layer'], function () {
+        let form = layui.form, $ = layui.jquery, layer = layui.layer;
+        let MODULE_PATH = rootPath + "/FlogVolumeTableController/";
+
+        form.on('submit(vt-save)', function (data) {
+            let loading = layer.load();
+            $.ajax({url: MODULE_PATH + 'add', type: 'post', data: data.field, dataType: 'json',
+                success: function (r) {
+                    layer.close(loading);
+                    if (r.code === 200) { layer.alert(r.msg, {title: '表档已录'}, function (i) {
+                        layer.close(i);
+                        let index = parent.layer.getFrameIndex(window.name);
+                        parent.layer.close(index);
+                        parent.layui.table.reload('vt-table');
+                    }); } else { layer.msg(r.msg || '没录上', {icon: 2, time: 4000}); }
+                },
+                error: function () { layer.close(loading); layer.msg('请求失败', {icon: 2}); }});
+            return false;
+        });
+    });
+</script>
+</body>
+</html>

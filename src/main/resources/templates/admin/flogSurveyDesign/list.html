@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('伐区调查设计')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">底档字号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="siteNo" class="layui-input">
+                </div>
+                <label class="layui-form-label">小班号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="subcompNo" class="layui-input">
+                </div>
+                <label class="layui-form-label">林地类别</label>
+                <div class="layui-input-inline">
+                    <select name="scopeKind">
+                        <option value="">全部</option>
+                        <option value="1">商品林</option>
+                        <option value="2">公益林·抚育</option>
+                        <option value="3">公益林·更新</option>
+                        <option value="4">公益林·低改</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">情形</label>
+                <div class="layui-input-inline">
+                    <select name="status">
+                        <option value="">全部</option>
+                        <option value="1">已钉</option>
+                        <option value="2">无线可依</option>
+                    </select>
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="sd-query">
+                    <i class="layui-icon layui-icon-search"></i> 查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i> 重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="sd-table" lay-filter="sd-table"></table>
+    </div>
+</div>
+</body>
+
+<script type="text/html" id="sd-toolbar">
+    <button shiro:hasPermission="flog:flogSurveyDesign:add" class="pear-btn pear-btn-primary pear-btn-md" lay-event="add">
+        <i class="layui-icon layui-icon-add-1"></i> 录检尺出单
+    </button>
+    <button shiro:hasPermission="flog:flogSurveyDesign:list" class="pear-btn pear-btn-md" lay-event="history">
+        <i class="layui-icon layui-icon-time"></i> 旧版回查
+    </button>
+</script>
+
+<script type="text/html" id="sd-bar">
+    <button shiro:hasPermission="flog:flogSurveyDesign:list" class="pear-btn pear-btn-primary pear-btn-sm" lay-event="detail" title="抽查：钉死值原样看">
+        <i class="layui-icon layui-icon-search"></i>
+    </button>
+    <button shiro:hasPermission="flog:flogSurveyDesign:edit" class="pear-btn pear-btn-warming pear-btn-sm" lay-event="revise" title="整改复验重算（升一版，两回结论各留代号）">
+        <i class="layui-icon layui-icon-refresh-3"></i> 复验
+    </button>
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery'], function () {
+        let table = layui.table, form = layui.form, $ = layui.jquery;
+        let MODULE_PATH = rootPath + "/FlogSurveyDesignController/";
+
+        let SCOPE = {1: '商品林', 2: '公益林·抚育', 3: '公益林·更新', 4: '公益林·低改'};
+        let GRADE = {1: '轻度', 2: '中度', 3: '重度'};
+
+        let cols = [[
+            {title: '设计单号', field: 'designNo', align: 'center', width: 160},
+            {title: '版次', field: 'nodeNo', align: 'center', width: 60},
+            {title: '底档字号', field: 'siteNo', align: 'center', width: 90},
+            {title: '小班号', field: 'subcompNo', align: 'center', width: 90},
+            {title: '林地类别', field: 'scopeKind', align: 'center', width: 120, templet: function (d) {
+                return SCOPE[d.scopeKind] || '';
+            }},
+            {title: '株数', field: 'treeCount', align: 'center', width: 70},
+            {title: '蓄积(m³)', field: 'totalVolume', align: 'center', width: 100},
+            {title: '出材(m³/ha)', field: 'yieldPerHa', align: 'center', width: 110},
+            {title: '强度档位', field: 'gradeLevel', align: 'center', width: 100, templet: function (d) {
+                if (d.status === 2) return '<span style="color:#c00">无线可依</span>';
+                return GRADE[d.gradeLevel] || '';
+            }},
+            {title: '所依界代号', field: 'ruleCode', align: 'center', width: 130},
+            {title: '界启用之日', field: 'ruleEffStart', align: 'center', width: 170},
+            {title: '调查设计之日', field: 'surveyDate', align: 'center', width: 170},
+            {title: '调查员', field: 'surveyBy', align: 'center', width: 90},
+            {title: '操作', toolbar: '#sd-bar', align: 'center', width: 130, fixed: 'right'}
+        ]];
+
+        table.render({
+            elem: '#sd-table', url: MODULE_PATH + 'list', page: true, method: 'get',
+            cols: cols, skin: 'line', toolbar: '#sd-toolbar',
+            defaultToolbar: ['refresh', 'filter', 'print', 'exports']
+        });
+
+        form.on('submit(sd-query)', function (data) {
+            table.reload('sd-table', {where: data.field, pageNum: 1});
+            return false;
+        });
+
+        table.on('tool(sd-table)', function (obj) {
+            if (obj.event === 'detail') {
+                $.get(MODULE_PATH + 'detail/' + obj.data.id, function (r) {
+                    if (r.code !== 200) { layer.msg(r.msg || '查不到', {icon: 2}); return; }
+                    let d = r.data.design, ts = r.data.trees;
+                    let grade = d.status === 2 ? '无线可依（档位空着，未拿邻近日子的线凑）' : (GRADE[d.gradeLevel] || '');
+                    let rows = ts.map(function (t) {
+                        return '<tr><td>' + t.treeSeq + '</td><td>' + t.dbh + '</td><td>' + t.treeHeight
+                            + '</td><td>' + t.treeVolume + '</td></tr>';
+                    }).join('');
+                    layer.open({type: 1, title: '抽查·设计单 ' + d.designNo + ' 第 ' + d.nodeNo + ' 版（钉死值）',
+                        area: ['860px', '620px'], shadeClose: true,
+                        content: '<div style="padding:14px;line-height:26px">'
+                        + '<b>强度结论：</b>' + grade + '　<b>所依界：</b>' + d.ruleCode
+                        + '　<b>界启用之日：</b>' + (d.ruleEffStart || '—') + '<br>'
+                        + '<b>调查设计之日：</b>' + d.surveyDate + '（取界认这一天，不认今天）<br>'
+                        + '<b>材积表：</b>' + d.volumeCode + ' 第 ' + d.volumeVer + ' 版　<b>小班面积：</b>'
+                        + d.area + ' ha　<b>出材率：</b>' + d.yieldRate + '<br>'
+                        + '<b>蓄积：</b>' + d.totalVolume + ' m³　<b>每公顷出材：</b>' + d.yieldPerHa + ' m³/ha<br>'
+                        + '<div style="color:#666;font-size:12px">' + (d.ruleBasis || '') + '</div>'
+                        + '<table class="layui-table" style="margin-top:8px"><thead><tr><th>株序</th><th>胸径(cm)</th>'
+                        + '<th>树高(m)</th><th>材积(m³)</th></tr></thead><tbody>' + rows + '</tbody></table>'
+                        + '</div>'});
+                }, 'json');
+            } else if (obj.event === 'revise') {
+                layer.open({type: 2, title: '整改复验重算（' + obj.data.designNo + ' 升一版，旧版留检）',
+                    shade: 0.1, area: ['920px', '680px'],
+                    content: MODULE_PATH + 'revise/' + obj.data.id});
+            }
+        });
+
+        table.on('toolbar(sd-table)', function (obj) {
+            if (obj.event === 'add') {
+                layer.open({type: 2, title: '录检尺出单（三级链一处算清）', shade: 0.1,
+                    area: ['920px', '680px'], content: MODULE_PATH + 'add'});
+            } else if (obj.event === 'history') {
+                layer.open({type: 2, title: '设计单旧版回查', shade: 0.1,
+                    area: ['860px', '600px'], content: MODULE_PATH + 'historyView'});
+            }
+        });
+    });
+</script>
+</body>
+</html>

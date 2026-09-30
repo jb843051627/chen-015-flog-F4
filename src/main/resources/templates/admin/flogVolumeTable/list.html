@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('材积表册')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">表代号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="tableCode" placeholder="如 VT-ZJ" class="layui-input">
+                </div>
+                <label class="layui-form-label">版本</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="tableVer" placeholder="如 2024" class="layui-input">
+                </div>
+                <label class="layui-form-label">情形</label>
+                <div class="layui-input-inline">
+                    <select name="status">
+                        <option value="">全部</option>
+                        <option value="0">在场可用</option>
+                        <option value="1">已停用（供旧单回查）</option>
+                    </select>
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="vt-query">
+                    <i class="layui-icon layui-icon-search"></i> 查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i> 重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="vt-table" lay-filter="vt-table"></table>
+    </div>
+</div>
+</body>
+
+<script type="text/html" id="vt-toolbar">
+    <button shiro:hasPermission="flog:flogVolumeTable:add" class="pear-btn pear-btn-primary pear-btn-md" lay-event="add">
+        <i class="layui-icon layui-icon-add-1"></i> 录表档
+    </button>
+</script>
+
+<script type="text/html" id="vt-bar">
+    {{#  if (d.status === 0) { }}
+    <button shiro:hasPermission="flog:flogVolumeTable:add" class="pear-btn pear-btn-warming pear-btn-sm" lay-event="stop" title="整版停用：已钉旧单仍可回查，新单取不在它头上">
+        <i class="layui-icon layui-icon-close"></i> 停用整版
+    </button>
+    {{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery'], function () {
+        let table = layui.table, form = layui.form, $ = layui.jquery;
+        let MODULE_PATH = rootPath + "/FlogVolumeTableController/";
+        let STAT = {0: '在场', 1: '已停用'};
+
+        let cols = [[
+            {title: '表代号', field: 'tableCode', align: 'center', width: 120},
+            {title: '版本', field: 'tableVer', align: 'center', width: 90},
+            {title: '胸径档起(含)', field: 'dbhMin', align: 'center', width: 120},
+            {title: '胸径档止(不含)', field: 'dbhMax', align: 'center', width: 130},
+            {title: '树高档起(含)', field: 'heightMin', align: 'center', width: 120},
+            {title: '树高档止(不含)', field: 'heightMax', align: 'center', width: 130},
+            {title: '单株材积(m³)', field: 'treeVolume', align: 'center', width: 130},
+            {title: '情形', field: 'status', align: 'center', width: 90, templet: function (d) {
+                return d.status === 1 ? '<span style="color:#999">已停用</span>' : '在场';
+            }},
+            {title: '操作', toolbar: '#vt-bar', align: 'center', width: 120, fixed: 'right'}
+        ]];
+
+        table.render({
+            elem: '#vt-table', url: MODULE_PATH + 'list', page: true, method: 'get',
+            cols: cols, skin: 'line', toolbar: '#vt-toolbar',
+            defaultToolbar: ['refresh', 'filter', 'print', 'exports']
+        });
+
+        form.on('submit(vt-query)', function (data) {
+            table.reload('vt-table', {where: data.field, pageNum: 1});
+            return false;
+        });
+
+        table.on('toolbar(vt-table)', function (obj) {
+            if (obj.event === 'add') {
+                layer.open({type: 2, title: '录一格材积表档', shade: 0.1,
+                    area: ['680px', '520px'], content: MODULE_PATH + 'add'});
+            }
+        });
+
+        table.on('tool(vt-table)', function (obj) {
+            if (obj.event === 'stop') {
+                layer.confirm('停用 ' + obj.data.tableCode + ' 第 ' + obj.data.tableVer
+                        + ' 整版？已钉在旧设计单上的表档仍翻得到，新单取不在它头上。',
+                    {icon: 3, title: '整版停用'}, function (idx) {
+                        layer.close(idx);
+                        $.post(MODULE_PATH + 'stop',
+                            {tableCode: obj.data.tableCode, tableVer: obj.data.tableVer},
+                            function (r) {
+                                if (r.code === 200) {
+                                    layer.msg(r.msg, {icon: 1, time: 1600}, function () {
+                                        table.reload('vt-table');
+                                    });
+                                } else { layer.msg(r.msg, {icon: 2, time: 3500}); }
+                            }, 'json');
+                    });
+            }
+        });
+    });
+</script>
+</body>
+</html>

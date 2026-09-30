@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('界册立新版')"/>
+</head>
+<body>
+<form class="layui-form">
+    <div class="mainBox"><div class="main-container">
+        <div class="layui-form-item">
+            <label class="layui-form-label">界代号</label>
+            <div class="layui-input-inline">
+                <input type="text" name="ruleCode" autocomplete="off" placeholder="如 SP-2027A" class="layui-input">
+            </div>
+            <label class="layui-form-label">线名</label>
+            <div class="layui-input-inline">
+                <input type="text" name="ruleName" autocomplete="off" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">林地类别</label>
+            <div class="layui-input-inline">
+                <select name="scopeKind">
+                    <option value="">请选择管哪一类</option>
+                    <option value="1">商品林</option>
+                    <option value="2">公益林·抚育性质</option>                    <option value="3">公益林·更新性质</option>
+                    <option value="4">公益林·低质低效林改造</option>
+                </select>
+            </div>
+            <label class="layui-form-label">启用之日</label>
+            <div class="layui-input-inline">
+                <input type="text" name="effStart" id="effStart" autocomplete="off" placeholder="2027-01-01" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">轻度界数</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.01" name="th1Max" placeholder="m³/ha，空=不设轻档" class="layui-input">
+            </div>
+            <label class="layui-form-label">中度界数</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.01" name="th2Max" placeholder="空=不设中档" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">重度界数</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.01" name="th3Max" placeholder="空=不设上界（跟着中界落重）" class="layui-input">
+            </div>
+            <label class="layui-form-label">抢线序位</label>
+            <div class="layui-input-inline">
+                <input type="number" name="priority" value="100" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">备注</label>
+            <div class="layui-input-inline" style="width:390px">
+                <input type="text" name="remark" autocomplete="off" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-block layui-word-aux">
+                三条界挨着往高里数：与轻界一样高落中界、与中界一样高落重界，越过重界统统算重；
+                界数空着是不设这一档的意思（早年纸质簿录入那条重界原本空着），空档整档跳过；
+                新版立好后旧版另走“交棒”，交棒日不含——旧线管到前一日、新版当天开口，全站取界只此一套口径。
+            </div>
+        </div>
+    </div></div>
+    <div class="bottom"><div class="button-container">
+        <button type="submit" class="layui-btn layui-btn-normal layui-btn-sm" lay-submit lay-filter="rule-save">
+            <i class="layui-icon layui-icon-ok"></i> 立这条界
+        </button>
+        <button type="reset" class="layui-btn layui-btn-primary layui-btn-sm">清空</button>
+    </div></div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery', 'layer', 'laydate'], function () {
+        let form = layui.form, $ = layui.jquery, layer = layui.layer, laydate = layui.laydate;
+        let MODULE_PATH = rootPath + "/FlogYieldRuleController/";
+        laydate.render({elem: '#effStart', type: 'date'});
+
+        function num(v) { return v === '' || v == null ? null : Number(v); }
+
+        form.on('submit(rule-save)', function (data) {
+            let f = data.field;
+            let body = {
+                ruleCode: f.ruleCode, ruleName: f.ruleName, scopeKind: num(f.scopeKind),
+                effStart: f.effStart ? f.effStart + ' 00:00:00' : null,
+                th1Max: num(f.th1Max), th2Max: num(f.th2Max), th3Max: num(f.th3Max),
+                priority: num(f.priority), remark: f.remark
+            };
+            if (!body.ruleCode || !body.ruleName || !body.scopeKind || !body.effStart) {
+                layer.msg('代号、线名、类别、启用之日缺不得', {icon: 2}); return false;
+            }
+            let loading = layer.load();
+            $.ajax({url: MODULE_PATH + 'add', type: 'post', contentType: 'application/json',
+                data: JSON.stringify(body), dataType: 'json',
+                success: function (r) {
+                    layer.close(loading);
+                    if (r.code === 200) { layer.alert(r.msg, {title: '界已立'}, function (i) {
+                        layer.close(i);
+                        let index = parent.layer.getFrameIndex(window.name);
+                        parent.layer.close(index);
+                        parent.layui.table.reload('rule-table');
+                    }); } else { layer.msg(r.msg || '没立上', {icon: 2, time: 4000}); }
+                },
+                error: function () { layer.close(loading); layer.msg('请求失败', {icon: 2}); }});
+            return false;
+        });
+    });
+</script>
+</body>
+</html>

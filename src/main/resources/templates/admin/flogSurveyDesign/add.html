@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('伐区调查设计出单')"/>
+</head>
+<body>
+<form class="layui-form">
+    <input type="hidden" name="reviseOfId" th:value="${reviseOfId}">
+    <div class="mainBox"><div class="main-container">
+        <div class="layui-form-item">
+            <label class="layui-form-label">底档字号</label>
+            <div class="layui-input-inline">
+                <input type="text" name="siteNo" class="layui-input">
+            </div>
+            <label class="layui-form-label">小班号</label>
+            <div class="layui-input-inline">
+                <input type="text" name="subcompNo" class="layui-input">
+            </div>
+            <label class="layui-form-label">调查设计之日</label>
+            <div class="layui-input-inline">
+                <input type="text" name="surveyDate" id="surveyDate" placeholder="取界认这一天，不认今天" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">采伐方式</label>
+            <div class="layui-input-inline">
+                <select name="cutMode">
+                    <option value="">请选择</option>
+                    <option value="1">皆伐（主伐）</option>
+                    <option value="2">渐伐（主伐）</option>
+                    <option value="3">择伐（主伐）</option>
+                    <option value="4">抚育采伐</option>
+                    <option value="5">更新采伐</option>
+                    <option value="6">低质低效林改造</option>
+                </select>
+            </div>
+            <label class="layui-form-label">林种性质</label>
+            <div class="layui-input-inline">
+                <select name="forestKind">
+                    <option value="">请选择</option>
+                    <option value="2">商品林</option>
+                    <option value="1">公益林（只许抚育/更新/改造）</option>
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">小班面积</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.01" name="area" placeholder="公顷，正数" class="layui-input">
+            </div>
+            <label class="layui-form-label">出材率</label>
+            <div class="layui-input-inline">
+                <input type="number" step="0.0001" name="yieldRate" placeholder="0..1 之间，如 0.65" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">材积表</label>
+            <div class="layui-input-inline">
+                <input type="text" name="volumeCode" placeholder="代号，如 VT-ZJ" class="layui-input">
+            </div>
+            <label class="layui-form-label">表版本</label>
+            <div class="layui-input-inline">
+                <input type="text" name="volumeVer" placeholder="如 2024" class="layui-input">
+            </div>
+            <div class="layui-input-inline layui-word-aux">同一份检尺只许钉一版表：蓄积与定档同回同版</div>
+        </div>
+
+        <div class="layui-form-item">
+            <label class="layui-form-label">检尺株账</label>
+            <div class="layui-input-block">
+                <table class="layui-table" id="tree-table" style="margin:0">
+                    <thead><tr><th width="60">株序</th><th>胸径(厘米)</th><th>树高(米)</th>
+                        <th width="90">操作</th></tr></thead>
+                    <tbody id="tree-body"></tbody>
+                </table>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" id="add-tree" style="margin-top:8px">
+                    <i class="layui-icon layui-icon-add-1"></i> 添一株
+                </button>
+                <span class="layui-word-aux">两数非正、胸径录成四位九、翻不到表档，整笔退回重录，一株坏数都不进链</span>
+            </div>
+        </div>
+
+        <div class="layui-form-item" id="eval-box" style="display:none">
+            <label class="layui-form-label">自核给回</label>
+            <div class="layui-input-block" id="eval-out"
+                 style="background:#f7f9fc;border:1px solid #e6e9f0;padding:10px;line-height:26px;border-radius:4px"></div>
+        </div>
+    </div></div>
+    <div class="bottom"><div class="button-container">
+        <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" id="btn-eval">
+            <i class="layui-icon layui-icon-survey"></i> 自核现算（不落库）
+        </button>
+        <button type="button" class="layui-btn layui-btn-normal layui-btn-sm" id="btn-submit">
+            <i class="layui-icon layui-icon-ok"></i> 出单钉结论
+        </button>
+        <button type="reset" class="layui-btn layui-btn-primary layui-btn-sm">清空</button>
+    </div></div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery', 'layer', 'laydate'], function () {
+        let form = layui.form, $ = layui.jquery, layer = layui.layer, laydate = layui.laydate;
+        let MODULE_PATH = rootPath + "/FlogSurveyDesignController/";
+        laydate.render({elem: '#surveyDate', type: 'date'});
+
+        let seq = 0;
+        function addTree() {
+            seq++;
+            $('#tree-body').append('<tr><td class="t-seq">' + seq + '</td>'
+                + '<td><input type="number" step="0.01" class="layui-input t-dbh"></td>'
+                + '<td><input type="number" step="0.01" class="layui-input t-h"></td>'
+                + '<td><button type="button" class="layui-btn layui-btn-danger layui-btn-sm t-del">删</button></td></tr>');
+        }
+        $('#add-tree').on('click', addTree);
+        $('#tree-body').on('click', '.t-del', function () {
+            $(this).closest('tr').remove();
+            renumber();
+        });
+        function renumber() {
+            seq = 0;
+            $('#tree-body tr').each(function () {
+                seq++;
+                $(this).find('.t-seq').text(seq);
+            });
+        }
+        addTree();
+        addTree();
+
+        function num(v) { return v === '' || v == null ? null : Number(v); }
+
+        function collect() {
+            let trees = [];
+            let bad = false;
+            $('#tree-body tr').each(function () {
+                let dbh = num($(this).find('.t-dbh').val());
+                let h = num($(this).find('.t-h').val());
+                if (dbh == null || h == null) { bad = true; }
+                trees.push({dbh: dbh, treeHeight: h});
+            });
+            if (bad || trees.length === 0) { layer.msg('每株的胸径、树高都得填上，株数为零进不了链', {icon: 2}); return null; }
+            let f = $('form').serializeArray().reduce(function (m, x) { m[x.name] = x.value; return m; }, {});
+            return {
+                reviseOfId: f.reviseOfId ? Number(f.reviseOfId) : null,
+                siteNo: f.siteNo, subcompNo: f.subcompNo,
+                cutMode: num(f.cutMode), forestKind: num(f.forestKind),
+                area: num(f.area), yieldRate: num(f.yieldRate),
+                volumeCode: f.volumeCode, volumeVer: f.volumeVer,
+                surveyDate: f.surveyDate ? f.surveyDate + ' 00:00:00' : null,
+                trees: trees
+            };
+        }
+
+        function renderEval(vo) {
+            $('#eval-box').show();
+            let head;
+            if (vo.noRule) {
+                head = '<b style="color:#c00">这一趟无线可依</b>：' + vo.noRuleReason + '<br>';
+            } else {
+                head = '<b style="color:#1e9fff">强度档位：' + vo.gradeLevelText + '</b>　所依界 <b>'
+                    + vo.ruleCode + '</b>（启用 ' + fmt(vo.ruleEffStart) + '）<br>'
+                    + '<span style="color:#666;font-size:12px">' + vo.ruleBasis + '</span><br>';
+            }
+            let lines = vo.treeLines.map(function (t) {
+                return '第' + t.treeSeq + '株 ' + t.dbh + '/' + t.treeHeight + '→' + t.treeVolume;
+            }).join('；');
+            $('#eval-out').html(head
+                + '林地类别：' + vo.scopeKindText + '　材积表：' + vo.volumeCode + ' 第 ' + vo.volumeVer + ' 版<br>'
+                + '株数 ' + vo.treeCount + '　蓄积 <b>' + vo.totalVolume + '</b> m³'
+                + '　每公顷出材 <b>' + vo.yieldPerHa + '</b> m³/ha<br>'
+                + '<span style="color:#666;font-size:12px">' + lines + '</span>');
+        }
+        function fmt(s) { return s ? String(s).replace(' 00:00:00', '') : '—'; }
+
+        function call(url, okTitle) {
+            let body = collect();
+            if (!body) return;
+            let loading = layer.load();
+            $.ajax({url: url, type: 'post', contentType: 'application/json',
+                data: JSON.stringify(body), dataType: 'json',
+                success: function (r) {
+                    layer.close(loading);
+                    if (r.code !== 200) { layer.msg(r.msg || '算不成', {icon: 2, time: 4500}); return; }
+                    if (r.data && r.data.treeLines) { renderEval(r.data); }
+                    if (url.indexOf('submit') >= 0) {
+                        layer.alert(r.msg || (okTitle + '完成'), {title: okTitle}, function (i) {
+                            layer.close(i);
+                            let index = parent.layer.getFrameIndex(window.name);
+                            parent.layer.close(index);
+                            parent.layui.table.reload('sd-table');
+                        });
+                    } else {
+                        layer.msg('自核已现算，核对无误再出单；出单后钉过不再改口', {icon: 1, time: 2200});
+                    }
+                },
+                error: function () { layer.close(loading); layer.msg('请求失败', {icon: 2}); }});
+        }
+
+        $('#btn-eval').on('click', function () { call(MODULE_PATH + 'evaluate', '自核'); });
+        $('#btn-submit').on('click', function () {
+            layer.confirm('出单后强度档位与所依界代号、启用之日即钉死，钉过不再改口；确认出单？',
+                {icon: 3, title: '出单'}, function (i) {
+                    layer.close(i);
+                    call(MODULE_PATH + 'submit', '出单');
+                });
+        });
+    });
+</script>
+</body>
+</html>

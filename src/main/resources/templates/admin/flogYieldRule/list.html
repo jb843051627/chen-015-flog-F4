@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('可采强度界限值界册')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">林地类别</label>
+                <div class="layui-input-inline">
+                    <select name="scopeKind">
+                        <option value="">全部</option>
+                        <option value="1">商品林</option>
+                        <option value="2">公益林·抚育</option>
+                        <option value="3">公益林·更新</option>
+                        <option value="4">公益林·低改</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">情形</label>
+                <div class="layui-input-inline">
+                    <select name="status">
+                        <option value="">全部</option>
+                        <option value="0">现行</option>
+                        <option value="1">已让位（仅供回查）</option>
+                    </select>
+                </div>
+                <label class="layui-form-label">代号</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="ruleCode" placeholder="界限值代号" class="layui-input">
+                </div>
+                <button class="pear-btn pear-btn-md pear-btn-primary" lay-submit lay-filter="rule-query">
+                    <i class="layui-icon layui-icon-search"></i> 查询
+                </button>
+                <button type="reset" class="pear-btn pear-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i> 重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="rule-table" lay-filter="rule-table"></table>
+    </div>
+</div>
+</body>
+
+<script type="text/html" id="rule-toolbar">
+    <button shiro:hasPermission="flog:flogYieldRule:add" class="pear-btn pear-btn-primary pear-btn-md" lay-event="add">
+        <i class="layui-icon layui-icon-add-1"></i> 立新版
+    </button>
+</script>
+
+<script type="text/html" id="rule-bar">
+    {{#  if (d.status === 0) { }}
+    <button shiro:hasPermission="flog:flogYieldRule:add" class="pear-btn pear-btn-warming pear-btn-sm" lay-event="handover" title="交棒让位（交棒日不含，当天起旧条只供回查）">
+        <i class="layui-icon layui-icon-export"></i> 交棒
+    </button>
+    {{#  } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'form', 'jquery'], function () {
+        let table = layui.table, form = layui.form, $ = layui.jquery;
+        let MODULE_PATH = rootPath + "/FlogYieldRuleController/";
+
+        let SCOPE = {1: '商品林', 2: '公益林·抚育', 3: '公益林·更新', 4: '公益林·低改'};
+        let STAT = {0: '现行', 1: '已让位'};
+
+        let cols = [[
+            {title: '代号', field: 'ruleCode', align: 'center', width: 130},
+            {title: '线名', field: 'ruleName', align: 'center', width: 240},
+            {title: '林地类别', field: 'scopeKind', align: 'center', width: 120, templet: function (d) {
+                return SCOPE[d.scopeKind] || '<span style="color:#c00">未归类（不参与取界）</span>';
+            }},
+            {title: '轻界', field: 'th1Max', align: 'center', width: 90, templet: function (d) {
+                return d.th1Max == null ? '不设' : d.th1Max;
+            }},
+            {title: '中界', field: 'th2Max', align: 'center', width: 90, templet: function (d) {
+                return d.th2Max == null ? '不设' : d.th2Max;
+            }},
+            {title: '重界', field: 'th3Max', align: 'center', width: 100, templet: function (d) {
+                return d.th3Max == null ? '不设上界' : d.th3Max;
+            }},
+            {title: '启用之日', field: 'effStart', align: 'center', width: 170},
+            {title: '交棒之日(不含)', field: 'effEnd', align: 'center', width: 170, templet: function (d) {
+                return d.effEnd || '—';
+            }},
+            {title: '序位', field: 'priority', align: 'center', width: 70},
+            {title: '情形', field: 'status', align: 'center', width: 90, templet: function (d) {
+                return d.status === 1 ? '<span style="color:#999">已让位</span>' : '现行';
+            }},
+            {title: '操作', toolbar: '#rule-bar', align: 'center', width: 100, fixed: 'right'}
+        ]];
+
+        table.render({
+            elem: '#rule-table', url: MODULE_PATH + 'list', page: true, method: 'get',
+            cols: cols, skin: 'line', toolbar: '#rule-toolbar',
+            defaultToolbar: ['refresh', 'filter', 'print', 'exports']
+        });
+
+        form.on('submit(rule-query)', function (data) {
+            table.reload('rule-table', {where: data.field, pageNum: 1});
+            return false;
+        });
+
+        table.on('toolbar(rule-table)', function (obj) {
+            if (obj.event === 'add') {
+                layer.open({type: 2, title: '界册立新版（换版只添不改）', shade: 0.1,
+                    area: ['720px', '620px'], content: MODULE_PATH + 'add'});
+            }
+        });
+
+        table.on('tool(rule-table)', function (obj) {
+            if (obj.event === 'handover') {
+                layer.prompt({title: '交棒之日（yyyy-MM-dd，当天起让位、不含当日）', formType: 0, value: ''},
+                    function (val, idx) {
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) { layer.msg('日子按 yyyy-MM-dd 给', {icon: 2}); return; }
+                        $.post(MODULE_PATH + 'handover/' + obj.data.id, {effEnd: val}, function (r) {
+                            if (r.code === 200) {
+                                layer.close(idx);
+                                layer.msg(r.msg, {icon: 1, time: 1600}, function () { table.reload('rule-table'); });
+                            } else { layer.msg(r.msg, {icon: 2}); }
+                        }, 'json');
+                    });
+            }
+        });
+    });
+</script>
+</body>
+</html>

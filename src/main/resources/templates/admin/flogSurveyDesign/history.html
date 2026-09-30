@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:include="include :: header('设计单旧版回查')"/>
+</head>
+<body>
+<form class="layui-form">
+    <div class="mainBox"><div class="main-container">
+        <div class="layui-form-item">
+            <label class="layui-form-label">设计单号</label>
+            <div class="layui-input-inline">
+                <input type="text" name="designNo" placeholder="同号各版按版本序列出" class="layui-input">
+            </div>
+            <button type="button" class="layui-btn layui-btn-normal layui-btn-sm" id="btn-query">
+                <i class="layui-icon layui-icon-search"></i> 翻版本
+            </button>
+            <span class="layui-word-aux">整改复验一版版往上加；两回结论各留各的代号，合成一条不算对</span>
+        </div>
+        <table class="layui-table" id="ver-table" style="display:none">
+            <thead><tr>
+                <th>版次</th><th>情形</th><th>株数</th><th>蓄积(m³)</th><th>出材(m³/ha)</th>
+                <th>档位</th><th>所依界代号</th><th>界启用之日</th><th>调查设计之日</th><th>现/旧</th>
+            </tr></thead>
+            <tbody id="ver-body"></tbody>
+        </table>
+    </div></div>
+</form>
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['form', 'jquery', 'layer'], function () {
+        let $ = layui.jquery, layer = layui.layer;
+        let MODULE_PATH = rootPath + "/FlogSurveyDesignController/";
+        let GRADE = {1: '轻度', 2: '中度', 3: '重度'};
+        let STAT = {1: '已钉', 2: '无线可依'};
+
+        $('#btn-query').on('click', function () {
+            let no = $('input[name="designNo"]').val();
+            if (!no) { layer.msg('先给设计单号', {icon: 2}); return; }
+            $.get(MODULE_PATH + 'versions/' + encodeURIComponent(no), function (r) {
+                if (r.code !== 200) { layer.msg(r.msg || '翻不到', {icon: 2}); return; }
+                if (!r.data.length) { layer.msg('该单号一册版本都翻不到', {icon: 2}); return; }
+                $('#ver-body').empty();
+                r.data.forEach(function (d) {
+                    let grade = d.status === 2 ? '<span style="color:#c00">无线可依</span>'
+                        : (GRADE[d.gradeLevel] || '');
+                    $('#ver-body').append('<tr' + (d.currentFlag === 1 ? ' style="background:#f3faff"' : '') + '>'
+                        + '<td>V' + d.nodeNo + '</td>'
+                        + '<td>' + (STAT[d.status] || d.status) + '</td>'
+                        + '<td>' + d.treeCount + '</td>'
+                        + '<td>' + d.totalVolume + '</td>'
+                        + '<td>' + d.yieldPerHa + '</td>'
+                        + '<td>' + grade + '</td>'
+                        + '<td>' + (d.ruleCode || '') + '</td>'
+                        + '<td>' + (d.ruleEffStart ? String(d.ruleEffStart).replace(' 00:00:00', '') : '—') + '</td>'
+                        + '<td>' + (d.surveyDate ? String(d.surveyDate).replace(' 00:00:00', '') : '') + '</td>'
+                        + '<td>' + (d.currentFlag === 1 ? '现行' : '旧版留检') + '</td></tr>');
+                });
+                $('#ver-table').show();
+            }, 'json');
+        });
+    });
+</script>
+</body>
+</html>
