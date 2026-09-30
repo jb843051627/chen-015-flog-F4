@@ -188,23 +188,124 @@ CREATE TABLE IF NOT EXISTS t_flog_stand_doc (
 
 CREATE TABLE IF NOT EXISTS t_flog_yield_rule (
   id bigint NOT NULL COMMENT '主键',
-  rule_code varchar(64) DEFAULT NULL COMMENT '可采强度界限值代号',
+  rule_code varchar(64) NOT NULL COMMENT '可采强度界限值代号',
   rule_name varchar(128) DEFAULT NULL COMMENT '线名',
-  th1_max decimal(12,2) DEFAULT NULL COMMENT '轻度线上限(立方米/公顷)',
-  th2_max decimal(12,2) DEFAULT NULL COMMENT '中度线上限(立方米/公顷)',
-  th3_max decimal(12,2) DEFAULT NULL COMMENT '重度线上限(立方米/公顷)',
-  eff_start datetime DEFAULT NULL COMMENT '启用之日',
-  eff_end datetime DEFAULT NULL COMMENT '交棒之日(不含)',
-  priority int DEFAULT NULL COMMENT '抢线顺位(数值越大越先开口)',
-  status int DEFAULT NULL COMMENT '线的情形 0现行 1已让位',
-  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
+  apply_scope int NOT NULL COMMENT '管哪一类林地 2商品林 11公益林·抚育 12公益林·更新 13公益林·低质低效林改造',
+  th1_max decimal(12,2) DEFAULT NULL COMMENT '轻度线上限(立方米/公顷)，空着=不设轻档',
+  th2_max decimal(12,2) DEFAULT NULL COMMENT '中度线上限(立方米/公顷)，空着=不设中档',
+  th3_max decimal(12,2) DEFAULT NULL COMMENT '重度线上限(立方米/公顷)，早年纸质录入的几条原本空着，空=不设重档，随中界往下落',
+  eff_start datetime NOT NULL COMMENT '启用之日（含）',
+  eff_end datetime DEFAULT NULL COMMENT '交棒之日(不含)；空着=至今未让位',
+  priority int NOT NULL DEFAULT 0 COMMENT '抢线顺位(数值越大越先开口)',
+  present_flag int NOT NULL DEFAULT 1 COMMENT '在不在场的旗子 1在场 0撤下（撤下的现行求值不取，只留册回查）',
+  status int NOT NULL DEFAULT 0 COMMENT '线的情形 0现行 1已让位（让了位的只供回查，现行求值不许再见）',
+  del_flag int NOT NULL DEFAULT 0 COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
   create_time datetime DEFAULT NULL COMMENT '创建时间',
   update_by varchar(64) DEFAULT NULL COMMENT '更新者',
   update_time datetime DEFAULT NULL COMMENT '更新时间',
   remark varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='可采强度界限值线';
+  PRIMARY KEY (id),
+  KEY idx_rule_scope_eff (apply_scope, del_flag, present_flag, status, eff_start, eff_end),
+  KEY idx_rule_code (rule_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='可采强度界限值线（界册，每版留痕）';
+
+-- 材积表版本册：二元立木材积式 V = param_a * D^exp_d * H^exp_h。
+-- 换版只准添新版、给旧版填交棒日，不许原地改系数；从检尺到蓄积只认同一版（见表注释与服务层）。
+CREATE TABLE IF NOT EXISTS t_flog_volume_table (
+  id bigint NOT NULL COMMENT '主键',
+  table_code varchar(64) NOT NULL COMMENT '材积表代号',
+  table_name varchar(128) DEFAULT NULL COMMENT '材积表名',
+  param_a decimal(20,10) NOT NULL COMMENT '材积式系数 a（V=a*D^b*H^c）',
+  exp_d decimal(8,4) NOT NULL COMMENT '胸径指数 b',
+  exp_h decimal(8,4) NOT NULL COMMENT '树高指数 c',
+  eff_start datetime NOT NULL COMMENT '启用之日（含）',
+  eff_end datetime DEFAULT NULL COMMENT '交棒之日(不含)；空着=现行版',
+  priority int NOT NULL DEFAULT 0 COMMENT '抢版顺位(数值越大越先开口)',
+  present_flag int NOT NULL DEFAULT 1 COMMENT '在不在场的旗子 1在场 0撤下',
+  status int NOT NULL DEFAULT 0 COMMENT '情形 0现行 1已让位',
+  del_flag int NOT NULL DEFAULT 0 COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  KEY idx_voltbl_eff (del_flag, present_flag, status, eff_start, eff_end),
+  KEY idx_voltbl_code (table_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='二元立木材积表版本册';
+
+-- 伐区调查设计单头：一张单子一个小班；取界看 design_date（调查设计那一日），不看今天。
+-- 定档结论不并在头上，另起一表逐轮追加（首评/整改复验各留各的代号）。
+CREATE TABLE IF NOT EXISTS t_flog_survey_design (
+  id bigint NOT NULL COMMENT '主键',
+  design_no varchar(64) DEFAULT NULL COMMENT '调查设计单号',
+  site_no varchar(64) DEFAULT NULL COMMENT '编制单位底档字号',
+  subcomp_no varchar(64) DEFAULT NULL COMMENT '小班号',
+  cut_block_no varchar(64) DEFAULT NULL COMMENT '伐区名号',
+  apply_scope int NOT NULL COMMENT '林地类别 2商品林 11公益林·抚育 12公益林·更新 13公益林·低质低效林改造',
+  area decimal(12,2) NOT NULL COMMENT '小班面积(公顷)',
+  yield_rate decimal(8,4) NOT NULL COMMENT '出材率',
+  survey_by varchar(64) DEFAULT NULL COMMENT '调查员（山场检尺人）',
+  design_date datetime NOT NULL COMMENT '调查设计那一日（取界只认这一天）',
+  latest_result_id bigint DEFAULT NULL COMMENT '最近一轮定档结论id（只作指向；结论行本身钉死不改）',
+  del_flag int NOT NULL DEFAULT 0 COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_survey_no (design_no),
+  KEY idx_survey_site_sub (site_no, subcomp_no),
+  KEY idx_survey_date (design_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='伐区调查设计单头';
+
+-- 山场检尺逐株账（三级链头一级）：胸径(厘米)、树高(米)与株序原样记账；
+-- tree_volume 是同一回三级计算里算出的逐株材积，不许回写取另一版材积表。
+CREATE TABLE IF NOT EXISTS t_flog_survey_tree (
+  id bigint NOT NULL COMMENT '主键',
+  design_id bigint NOT NULL COMMENT '所属调查设计单id',
+  tree_no int NOT NULL COMMENT '株序（山场记账顺序）',
+  round_no int NOT NULL DEFAULT 1 COMMENT '所属轮次 1首评 2整改复验…（各轮检尺账各记各的）',
+  dbh decimal(8,2) NOT NULL COMMENT '胸径(厘米)',
+  height decimal(8,2) NOT NULL COMMENT '树高(米)',
+  tree_volume decimal(14,6) DEFAULT NULL COMMENT '逐株材积(立方米，同一回计算钉入)',
+  del_flag int NOT NULL DEFAULT 0 COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (id),
+  KEY idx_tree_design (design_id, round_no, tree_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='伐区调查山场检尺逐株账';
+
+-- 定档结论行：评定结果连同所依界代号、界启用之日、材积表版一并钉死，钉过不再改口。
+-- 整改复验重算一遍即追加一行：两回结论各留各的代号，合成一条不算对。
+CREATE TABLE IF NOT EXISTS t_flog_survey_result (
+  id bigint NOT NULL COMMENT '主键',
+  design_id bigint NOT NULL COMMENT '所属调查设计单id',
+  round_no int NOT NULL COMMENT '轮次 1首评 2整改复验 3再复验…',
+  recheck_flag int NOT NULL DEFAULT 0 COMMENT '是否复验 0首评 1整改复验',
+  total_volume decimal(14,4) DEFAULT NULL COMMENT '本回总蓄积(立方米，逐株累加)',
+  yield_per_ha decimal(14,4) DEFAULT NULL COMMENT '本回每公顷出材量(立方米/公顷)=蓄积*出材率/面积',
+  grade_level int DEFAULT NULL COMMENT '强度档位 1轻 2中 3重；无线可依时为空',
+  basis_missing int NOT NULL DEFAULT 0 COMMENT '是否无线可依 0有线 1当日在场界翻不出，写明无线，不拿邻近日子凑',
+  rule_code varchar(64) DEFAULT NULL COMMENT '所依界代号',
+  rule_eff_start datetime DEFAULT NULL COMMENT '所依那条界的启用之日',
+  vol_table_code varchar(64) DEFAULT NULL COMMENT '所用材积表版代号',
+  vol_table_eff_start datetime DEFAULT NULL COMMENT '所用材积表版启用之日',
+  pinned_by varchar(64) DEFAULT NULL COMMENT '钉单人',
+  pinned_time datetime DEFAULT NULL COMMENT '钉单时刻',
+  del_flag int NOT NULL DEFAULT 0 COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  KEY idx_result_design_round (design_id, round_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='伐区调查设计定档结论（逐轮追加，钉死不改）';
 
 -- 年度额度账：一档一年一行，年初批下本年可占的立方米总数。
 CREATE TABLE IF NOT EXISTS t_flog_quota_year (
@@ -281,6 +382,40 @@ INSERT IGNORE INTO t_flog_site_grant (id, user_id, site_no, grant_type, del_flag
 VALUES (0, 433236479427350528, 'DC00', 1, 0, 'seed', NOW()),
        (1, 433236479427350528, 'DC02', 2, 0, 'seed', NOW());
 
+-- 界册种子：每版留痕，让位版只供回查。交棒日口径全站一套——旧的管到交棒日前一刻，新的交棒日开口。
+-- 商品林(2)：年初一版、入秋换一版；另有一条高序位线与新版同场（序位大的说话）。
+INSERT IGNORE INTO t_flog_yield_rule
+  (id, rule_code, rule_name, apply_scope, th1_max, th2_max, th3_max, eff_start, eff_end, priority, present_flag, status, del_flag, create_by, create_time, remark)
+VALUES
+  (920000000000000101, 'GY-2025-A', '商品林年初版', 2, 20.00, 40.00, 80.00,
+   '2025-01-01 00:00:00', '2025-09-01 00:00:00', 10, 1, 1, 0, 'seed', NOW(), '入秋换版后让位，只供回查'),
+  (920000000000000102, 'GY-2025-B', '商品林入秋版', 2, 25.00, 50.00, 100.00,
+   '2025-09-01 00:00:00', NULL, 10, 1, 0, 0, 'seed', NOW(), '现行'),
+  (920000000000000103, 'GY-2025-X', '商品林入秋专项高序位线', 2, 22.00, 45.00, 90.00,
+   '2025-09-01 00:00:00', NULL, 20, 1, 0, 0, 'seed', NOW(), '与入秋版同场，序位大者说话'),
+-- 公益林·抚育(11)：早年纸质设计簿录进来的一条，重界原本空着——空着是不设这一档，随中界往下落。
+  (920000000000000111, 'GY-FY-PAPER', '公益林抚育纸质线', 11, 15.00, 30.00, NULL,
+   '2024-01-01 00:00:00', NULL, 10, 1, 0, 0, 'seed', NOW(), '纸质录入，重界空缺=不设重档'),
+-- 公益林·更新(12)：两条同序位同场，序位分不出高下时认代号排在后头的（GX-B）。
+  (920000000000000121, 'GX-A', '公益林更新甲线', 12, 18.00, 36.00, 72.00,
+   '2025-01-01 00:00:00', NULL, 10, 1, 0, 0, 'seed', NOW(), '同序位并线'),
+  (920000000000000122, 'GX-B', '公益林更新乙线', 12, 16.00, 32.00, 64.00,
+   '2025-01-01 00:00:00', NULL, 10, 1, 0, 0, 'seed', NOW(), '同序位并线，代号靠后者说话'),
+-- 公益林·低质低效林改造(13)：2025-03-01 才开口；此前在场的一条已撤旗——空当期写明无线可依，不许拿邻近日子凑。
+  (920000000000000131, 'GD-OLD', '低改旧线（已撤下）', 13, 10.00, 20.00, 40.00,
+   '2024-01-01 00:00:00', NULL, 10, 0, 0, 0, 'seed', NOW(), '撤旗留册，现行求值不取'),
+  (920000000000000132, 'GD-2025', '低改现行线', 13, 12.00, 24.00, 48.00,
+   '2025-03-01 00:00:00', NULL, 10, 1, 0, 0, 'seed', NOW(), '2025-03-01 前为无线空当');
+
+-- 材积表版本册：年初一版、入秋换一版（V=a*D^b*H^c）。同一份检尺，蓄积与强度评定只许取同一版。
+INSERT IGNORE INTO t_flog_volume_table
+  (id, table_code, table_name, param_a, exp_d, exp_h, eff_start, eff_end, priority, present_flag, status, del_flag, create_by, create_time, remark)
+VALUES
+  (920000000000000201, 'VT-2025-A', '二元材积表年初版', 0.0000600000, 1.8000, 1.0000,
+   '2025-01-01 00:00:00', '2025-09-01 00:00:00', 10, 1, 1, 0, 'seed', NOW(), '入秋换版后让位'),
+  (920000000000000202, 'VT-2025-B', '二元材积表入秋版', 0.0000580000, 1.8200, 1.0000,
+   '2025-09-01 00:00:00', NULL, 10, 1, 0, 0, 'seed', NOW(), '现行版');
+
 -- 菜单与按钮权限点（flog 段），挂给管理员(488243256161730560)与用户(488289006124007424)两角色。
 INSERT IGNORE INTO t_sys_permission
   (id, name, descripion, url, is_blank, pid, perms, type, icon, order_num, visible, create_by, create_time)
@@ -310,7 +445,13 @@ VALUES
   (910000000000000012, '清册收册递行', '整册提交/逐行递入/回执', '/FlogDeclareRowController/submit', 0, 910000000000000010,
    'flog:flogDeclareRow:add', 2, '', 2, 0, 'seed', NOW()),
   (910000000000000013, '往期结转与差异办理', '收满两期转往期/差异清单入账', '/FlogDeclareRowController/turn', 0, 910000000000000010,
-   'flog:flogDeclareRow:edit', 2, '', 3, 0, 'seed', NOW());
+   'flog:flogDeclareRow:edit', 2, '', 3, 0, 'seed', NOW()),
+  (910000000000000014, '可采强度界册', '界册各版只供翻检', '/FlogYieldRuleController/view', 0, 0,
+   'flog:flogYieldRule:view', 1, 'fa fa-ruler', 94, 0, 'seed', NOW()),
+  (910000000000000015, '伐区调查设计', '检尺三级链一处算清并钉档', '/FlogSurveyDesignController/view', 0, 0,
+   'flog:flogSurveyDesign:view', 1, 'fa fa-file-text', 95, 0, 'seed', NOW()),
+  (910000000000000016, '调查设计提交复验', '提交钉档/整改复验重算追加', '/FlogSurveyDesignController/submit', 0, 910000000000000015,
+   'flog:flogSurveyDesign:add', 2, '', 1, 0, 'seed', NOW());
 
 -- 两角色都有的：建档卡查看/立卡/核对压死/删除(1..5)、底档册查看(6)。
 INSERT IGNORE INTO t_sys_permission_role (id, role_id, permission_id, create_by, create_time)
@@ -330,6 +471,9 @@ CROSS JOIN (
   UNION ALL SELECT 11, 910000000000000011
   UNION ALL SELECT 12, 910000000000000012
   UNION ALL SELECT 13, 910000000000000013
+  UNION ALL SELECT 14, 910000000000000014
+  UNION ALL SELECT 15, 910000000000000015
+  UNION ALL SELECT 16, 910000000000000016
 ) p;
 
 -- 仅上级账号（管理员）：底档立户收回(7)、额度下达查看(8)、额度批数(9)。

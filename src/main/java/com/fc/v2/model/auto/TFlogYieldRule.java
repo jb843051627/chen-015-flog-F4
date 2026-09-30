@@ -42,7 +42,12 @@ public class TFlogYieldRule implements Serializable {
     @ApiModelProperty(value = "线名")
     private String ruleName;
 
-    /** 轻度线上限(立方米/公顷) */
+    /** 管哪一类林地 2商品林 11公益林·抚育 12公益林·更新 13公益林·低质低效林改造 */
+    @TableField("apply_scope")
+    @ApiModelProperty(value = "管哪一类林地 2商品林 11公益林·抚育 12公益林·更新 13公益林·低质低效林改造")
+    private Integer applyScope;
+
+    /** 轻度线上限(立方米/公顷)，空着=不设轻档 */
     @TableField("th1_max")
     @ApiModelProperty(value = "轻度线上限(立方米/公顷)")
     private BigDecimal th1Max;
@@ -74,7 +79,12 @@ public class TFlogYieldRule implements Serializable {
     @ApiModelProperty(value = "抢线顺位(数值越大越先开口)")
     private Integer priority;
 
-    /** 线的情形 0现行 1已让位 */
+    /** 在不在场的旗子 1在场 0撤下（撤下的现行求值不取，只留册回查） */
+    @TableField("present_flag")
+    @ApiModelProperty(value = "在不在场的旗子 1在场 0撤下")
+    private Integer presentFlag;
+
+    /** 线的情形 0现行 1已让位（让了位的只供回查，现行求值不许再见） */
     @TableField("status")
     @ApiModelProperty(value = "线的情形 0现行 1已让位")
     private Integer status;
@@ -135,6 +145,14 @@ public class TFlogYieldRule implements Serializable {
         this.ruleName = ruleName;
     }
 
+    public Integer getApplyScope() {
+        return applyScope;
+    }
+
+    public void setApplyScope(Integer applyScope) {
+        this.applyScope = applyScope;
+    }
+
     public BigDecimal getTh1Max() {
         return th1Max;
     }
@@ -181,6 +199,14 @@ public class TFlogYieldRule implements Serializable {
 
     public void setPriority(Integer priority) {
         this.priority = priority;
+    }
+
+    public Integer getPresentFlag() {
+        return presentFlag;
+    }
+
+    public void setPresentFlag(Integer presentFlag) {
+        this.presentFlag = presentFlag;
     }
 
     public Integer getStatus() {
